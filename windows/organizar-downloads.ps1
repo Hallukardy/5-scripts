@@ -17,7 +17,7 @@
 #>
 
 param(
-    [string]$Path = "."
+    [string]$Path = "D:\GitHub"
 )
 
 # ── Resolver caminho ──

@@ -19,7 +19,7 @@
 #>
 
 param(
-    [string]$Path = $env:USERPROFILE,
+    [string]$Path = "D:\GitHub",
     [int]$Count = 20
 )
 
@@ -68,9 +68,9 @@ function Write-ColoredSize {
 
 function Get-ShortPath {
     param([string]$FullPath)
-    $home = $env:USERPROFILE
-    if ($FullPath.StartsWith($home)) {
-        return "~" + $FullPath.Substring($home.Length)
+    $baseHome = $env:USERPROFILE
+    if ($FullPath.StartsWith($baseHome)) {
+        return "~" + $FullPath.Substring($baseHome.Length)
     }
     return $FullPath
 }

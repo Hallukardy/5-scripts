@@ -20,14 +20,19 @@
 #>
 
 param(
-    [string]$Path = ".",
-    [long]$MinSize = 1024
+    [string]$Path = "D:\GitHub",
+    [long]$MinSize = 1024,
+    [switch]$Json
 )
 
 # ── Resolver caminho ──
 
 $Target = (Resolve-Path -Path $Path -ErrorAction SilentlyContinue).Path
 if (-not $Target -or -not (Test-Path -Path $Target -PathType Container)) {
+    if ($Json) { 
+        Write-Output '{"error": "Diretorio invalido"}'
+        exit 1
+    }
     Write-Host "Erro: '$Path' nao e um diretorio valido." -ForegroundColor Red
     Read-Host "  Pressione Enter para sair"
     exit 1
@@ -53,9 +58,9 @@ function Format-HumanSize {
 
 function Get-ShortPath {
     param([string]$FullPath)
-    $home = $env:USERPROFILE
-    if ($FullPath.StartsWith($home)) {
-        return "~" + $FullPath.Substring($home.Length)
+    $baseHome = $env:USERPROFILE
+    if ($FullPath.StartsWith($baseHome)) {
+        return "~" + $FullPath.Substring($baseHome.Length)
     }
     return $FullPath
 }
@@ -106,9 +111,9 @@ Write-Host "`r  Agrupando por tamanho..." -NoNewline
 
 $sizeGroups = $allFiles | Group-Object -Property Length | Where-Object { $_.Count -gt 1 }
 
-$candidates = @()
+$candidates = [System.Collections.Generic.List[object]]::new()
 foreach ($group in $sizeGroups) {
-    $candidates += $group.Group
+    $group.Group | ForEach-Object { $candidates.Add($_) }
 }
 
 $candidateCount = $candidates.Count
@@ -128,7 +133,7 @@ Write-Host " candidatos a duplicata (mesmo tamanho)         "
 # ── Passo 3: Calcular hashes ──
 
 $hashed = 0
-$hashResults = @()
+$hashResults = [System.Collections.Generic.List[object]]::new()
 
 foreach ($file in $candidates) {
     $hashed++
@@ -137,11 +142,11 @@ foreach ($file in $candidates) {
     }
     try {
         $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
-        $hashResults += [PSCustomObject]@{
+        $hashResults.Add([PSCustomObject]@{
             Hash = $hash
             Size = $file.Length
             Path = $file.FullName
-        }
+        })
     }
     catch {
         # Arquivo inacessivel, pular
@@ -158,6 +163,10 @@ Write-Host ""
 $dupGroups = $hashResults | Group-Object -Property Hash | Where-Object { $_.Count -gt 1 }
 
 if ($dupGroups.Count -eq 0) {
+    if ($Json) {
+        Write-Output '[]'
+        exit 0
+    }
     Write-Host "  Nenhuma duplicata encontrada." -ForegroundColor Green
     Write-Host ""
     Read-Host "  Pressione Enter para sair"
@@ -165,6 +174,25 @@ if ($dupGroups.Count -eq 0) {
 }
 
 # ── Passo 5: Exibir resultados ──
+
+if ($Json) {
+    $results = [System.Collections.Generic.List[object]]::new()
+    foreach ($group in $dupGroups) {
+        $files = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $group.Group) {
+            $files.Add([PSCustomObject]@{
+                Path = $item.Path
+                Size = $item.Size
+            })
+        }
+        $results.Add([PSCustomObject]@{
+            Hash  = $group.Name
+            Files = $files
+        })
+    }
+    Write-Output ($results | ConvertTo-Json -Depth 5)
+    exit 0
+}
 
 Write-Host "  Duplicatas encontradas:" -ForegroundColor White
 Write-Host ""
